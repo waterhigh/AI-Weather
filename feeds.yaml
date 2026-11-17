@@ -8,10 +8,15 @@ settings:
 
 categories:
   商业变现与独立开发:
-    - name: Indie Hackers
-      url: https://www.indiehackers.com/feed.xml
+    # 社区镜像，非官方源；如主地址不可用，可替换为 https://feed.indiehackers.world
+    - name: Indie Hackers — 社区镜像
+      url: https://ihrss.io/top/today
     - name: Product Hunt
       url: https://www.producthunt.com/feed
+    - name: Reddit — SideProject 日榜
+      url: https://www.reddit.com/r/SideProject/top/.rss?t=day
+    - name: Reddit — SaaS 日榜
+      url: https://www.reddit.com/r/SaaS/top/.rss?t=day
     - name: Hacker News — Show HN
       url: https://hnrss.org/show
     - name: MicroConf
@@ -31,6 +36,8 @@ categories:
       url: ${RSSHUB_BASE_URL}/twitter/user/simonw
 
   AI工程与视觉前沿:
+    - name: Reddit — LocalLLaMA 日榜
+      url: https://www.reddit.com/r/LocalLLaMA/top/.rss?t=day
     - name: Hugging Face Blog
       url: https://huggingface.co/blog/feed.xml
     - name: Simon Willison's Weblog
