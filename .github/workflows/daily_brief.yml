@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       dry_run:
-        description: '仅生成简报并上传预览，不发送邮件（仍调用模型 API）'
+        description: '仅生成简报并上传预览，不发送邮件（仍调用 Tavily 和模型 API）'
         type: boolean
         default: false
 
@@ -33,6 +33,7 @@ jobs:
       SMTP_PASS: ${{ secrets.SMTP_PASS }}
       TO_EMAIL: ${{ secrets.TO_EMAIL }}
       FROM_EMAIL: ${{ secrets.FROM_EMAIL }}
+      # job 级变量供 python main.py 使用：X 近一周、社区近一天检索。
       TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}
       DRY_RUN: ${{ inputs.dry_run || false }}
     steps:
