@@ -1,4 +1,4 @@
-name: AI 搞钱雷达每日简报
+name: Prism Scout 每日商业与视觉情报
 
 on:
   schedule:
@@ -33,7 +33,7 @@ jobs:
       SMTP_PASS: ${{ secrets.SMTP_PASS }}
       TO_EMAIL: ${{ secrets.TO_EMAIL }}
       FROM_EMAIL: ${{ secrets.FROM_EMAIL }}
-      RSSHUB_BASE_URL: ${{ secrets.RSSHUB_BASE_URL }}
+      TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}
       DRY_RUN: ${{ inputs.dry_run || false }}
     steps:
       - uses: actions/checkout@v4
@@ -51,7 +51,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: ai-brief-${{ github.run_id }}-${{ github.run_attempt }}
+          name: prism-scout-${{ github.run_id }}-${{ github.run_attempt }}
           path: output/
           retention-days: 7
           if-no-files-found: ignore
