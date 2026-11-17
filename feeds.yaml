@@ -1,0 +1,43 @@
+# 默认只取过去 24 小时；可改为 36，程序拒绝超过 36 小时。
+settings:
+  lookback_hours: 24
+  max_items_per_feed: 8
+  max_items_per_category: 20
+  summary_chars: 1400
+  concurrency: 6
+
+categories:
+  商业变现与独立开发:
+    - name: Indie Hackers
+      url: https://www.indiehackers.com/feed.xml
+    - name: Product Hunt
+      url: https://www.producthunt.com/feed
+    - name: Hacker News — Show HN
+      url: https://hnrss.org/show
+    - name: MicroConf
+      url: https://microconf.com/latest?format=rss
+
+  X大佬动态:
+    # X 无通用官方 RSS。设置 RSSHUB_BASE_URL 指向支持 Twitter 路由的实例；
+    # 实例通常还需要运营者配置 X 登录凭据。未设置时这些源自动跳过。
+    # 也可以直接把 url 替换成你已订阅的第三方 X RSS 地址。
+    - name: Pieter Levels (@levelsio)
+      url: ${RSSHUB_BASE_URL}/twitter/user/levelsio
+    - name: Marc Lou (@marc_louvion)
+      url: ${RSSHUB_BASE_URL}/twitter/user/marc_louvion
+    - name: Danny Postma (@dannypostma)
+      url: ${RSSHUB_BASE_URL}/twitter/user/dannypostma
+    - name: Simon Willison (@simonw)
+      url: ${RSSHUB_BASE_URL}/twitter/user/simonw
+
+  AI工程与视觉前沿:
+    - name: Hugging Face Blog
+      url: https://huggingface.co/blog/feed.xml
+    - name: Simon Willison's Weblog
+      url: https://simonwillison.net/atom/everything/
+    - name: Ollama Releases
+      url: https://github.com/ollama/ollama/releases.atom
+    - name: vLLM Releases
+      url: https://github.com/vllm-project/vllm/releases.atom
+    - name: Transformers Releases
+      url: https://github.com/huggingface/transformers/releases.atom
