@@ -88,10 +88,10 @@ class FeedTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(articles, [])
         self.assertEqual(health["reason"], "TimeoutError")
 
-    async def test_missing_rsshub_skips_without_request(self):
+    async def test_missing_feed_variable_skips_without_request(self):
         async with httpx.AsyncClient(transport=httpx.MockTransport(lambda _: self.fail("Unexpected network"))) as client:
             with patch.dict(os.environ, {}, clear=True):
-                _, health = await main.fetch_one(client, "X", {"name": "X", "url": "${RSSHUB_BASE_URL}/twitter/user/test"}, NOW, SETTINGS)
+                _, health = await main.fetch_one(client, "test", {"name": "custom", "url": "${CUSTOM_FEED_BASE}/feed"}, NOW, SETTINGS)
         self.assertEqual(health["status"], "skipped")
 
     async def test_response_size_limit(self):
@@ -111,11 +111,12 @@ class FeedTests(unittest.IsolatedAsyncioTestCase):
             return httpx.Response(200, content=rss(rss_item("shared"), rss_item("unique", 2)))
 
         client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
-        with patch.object(main.httpx, "AsyncClient", return_value=client):
+        with patch.dict(os.environ, {"TAVILY_API_KEY": ""}), patch.object(main.httpx, "AsyncClient", return_value=client):
             articles, health = await main.collect_articles(config, NOW)
         self.assertEqual([a.title for a in articles], ["shared", "unique"])
         self.assertEqual([a.id for a in articles], ["S001", "S002"])
-        self.assertTrue(all(h["status"] == "ok" for h in health))
+        self.assertTrue(all(h["status"] == "ok" for h in health[:-1]))
+        self.assertEqual(health[-1]["reason"], "missing TAVILY_API_KEY")
 
     def test_excessive_lookback_rejected(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -197,7 +198,8 @@ class RenderingAndDeliveryTests(unittest.IsolatedAsyncioTestCase):
         self.assertIsNone(soup.find("img"))
         self.assertIsNone(soup.find("script"))
         self.assertTrue(soup.find("meta", attrs={"name": "viewport"}))
-        self.assertTrue(all(a.get("href", "").startswith("https://example.com") for a in soup.find_all("a")))
+        self.assertTrue(all(a.get("href", "").startswith("https://example.com") or a.get("href") == main.X_LIST_URL for a in soup.find_all("a")))
+        self.assertIsNotNone(soup.find("a", href=main.X_LIST_URL))
         self.assertGreaterEqual(len(soup.find_all("h2")), 4)
 
     def test_smtp_tls_modes_and_multipart_message(self):
