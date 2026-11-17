@@ -1,4 +1,4 @@
-# 默认只取过去 24 小时；可改为 36，程序拒绝超过 36 小时。
+# 默认 24 小时；指定低频源通过 lookback_hours 单独放宽至 72 小时。
 settings:
   lookback_hours: 24
   max_items_per_feed: 8
@@ -8,26 +8,22 @@ settings:
 
 categories:
   商业变现与独立开发:
-    # 社区镜像，非官方源；如主地址不可用，可替换为 https://feed.indiehackers.world
-    - name: Indie Hackers — 社区镜像
-      url: https://ihrss.io/top/today
     - name: Product Hunt
       url: https://www.producthunt.com/feed
-    - name: Reddit — SideProject 日榜
-      url: https://www.reddit.com/r/SideProject/top/.rss?t=day
     - name: Reddit — SaaS 日榜
       url: https://www.reddit.com/r/SaaS/top/.rss?t=day
+      retry_429_delay_seconds: 3
     - name: Hacker News — Show HN
       url: https://hnrss.org/show
     - name: MicroConf
       url: https://microconf.com/latest?format=rss
+      lookback_hours: 72
 
-  # X 动态由 main.py 的 Tavily 双查询提供；无需 RSSHub，配置 TAVILY_API_KEY 即可。
+  # X 专属池、X 商业池、Reddit/IH 精选池由 main.py 的 Tavily 三查询提供。
   AI工程与视觉前沿:
-    - name: Reddit — LocalLLaMA 日榜
-      url: https://www.reddit.com/r/LocalLLaMA/top/.rss?t=day
     - name: Hugging Face Blog
       url: https://huggingface.co/blog/feed.xml
+      lookback_hours: 72
     - name: Simon Willison's Weblog
       url: https://simonwillison.net/atom/everything/
     - name: Ollama Releases
@@ -36,3 +32,4 @@ categories:
       url: https://github.com/vllm-project/vllm/releases.atom
     - name: Transformers Releases
       url: https://github.com/huggingface/transformers/releases.atom
+      lookback_hours: 72

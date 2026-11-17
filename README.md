@@ -5,7 +5,7 @@
 ## 项目文件
 
 - `main.py`：抓取、时间筛选、模型提炼、Markdown/HTML 渲染与 SMTP 发送。
-- `feeds.yaml`：商业与工程 RSS、时间窗口及条目限额；X 双查询在 `main.py` 中配置。
+- `feeds.yaml`：商业与工程 RSS、单源时间窗口及条目限额；Tavily 三个检索池在 `main.py` 中配置。
 - `requirements.txt`：Python 依赖；推荐 Python 3.12，最低 3.11。
 - `.github/workflows/daily_brief.yml`：每日调度、手动运行、离线检查与预览归档。
 - `tests/`：完全离线的 RSS、Tavily、模型、邮件与异常路径测试。
@@ -21,7 +21,7 @@
 | `LLM_API_KEY` | 模型供应商 API 密钥 |
 | `LLM_BASE_URL` | API 根地址，例如 `https://api.openai.com/v1`；具体前缀以供应商为准 |
 | `LLM_MODEL` | 供应商支持的 Chat Completions 文本模型标识 |
-| `TAVILY_API_KEY` | Tavily Search API 密钥，用于 X 动态的两组搜索 |
+| `TAVILY_API_KEY` | Tavily Search API 密钥，用于 X 专属池、X 商业池、Reddit/IH 精选池 |
 | `SMTP_HOST` | SMTP 服务器地址 |
 | `SMTP_PORT` | 通常为 `465`（SSL）或 `587`（STARTTLS） |
 | `SMTP_USER` | SMTP 登录用户名，通常为完整邮箱地址 |
@@ -37,23 +37,31 @@
 
 ## X 与其他信源
 
-Indie Hackers 使用社区镜像 `https://ihrss.io/top/today`；备用地址为 `https://feed.indiehackers.world`，需要时在 `feeds.yaml` 中手动替换。商业类还包含 Product Hunt 和 Reddit 的 r/SideProject、r/SaaS 日榜；工程类新增 r/LocalLLaMA 日榜，用于寻找多模态与视觉应用线索。这些地址不需要额外 API Key，实际可用性以运行时健康报告为准。
+已删除 Indie Hackers 社区镜像、r/SideProject 与 r/LocalLLaMA 直连 RSS，改由 Tavily 社区精选池检索。保留 Product Hunt、r/SaaS 日榜、Show HN 与工程博客/发布源。r/SaaS 配置浏览器 User-Agent，遇到 HTTP 429 时等待 3 秒重试一次，仍失败则记录并跳过；延迟重试不保证能解除服务端限流。
 
-新品排名和 Reddit 热度不代表真实付费数据；收入复盘属于作者自述。程序仍按发布时间筛选 24 小时窗口，日榜中发布时间较早的条目会被过滤。
+新品排名和 Reddit 热度不代表真实付费数据；收入复盘属于作者自述。日常源按发布时间筛选 24 小时窗口，指定低频源使用 72 小时窗口。
 
-X 动态通过 Tavily 每次执行两组 `basic` 搜索：核心账号 `levelsio`、`marc_louvion`、`dannypostmaa`、`dotey`、`op7418`（最多 15 条），以及 AI / VLM / OCR 商业实践（最多 10 条）。两组均使用 `time_range="day"`、限制 `x.com` 与 `twitter.com`，各自设置 20 秒超时；清洗后仅保留原帖链接，按帖子 ID 合并 Twitter/X 域名的重复结果。X 结果追加到 RSS 池后统一编号，不占 RSS 每分类配额。
+Tavily 每次执行三个独立 `basic` 搜索，均使用 `time_range="day"`，每个请求设置 20 秒超时：
 
-邮件附带 [X 监控列表](https://x.com/i/lists/2122591054356709465) 入口。程序搜索指定的五个账号，不会读取或同步列表成员，也不保证搜索引擎覆盖全部原帖。搜索结果缺少精确发布时间时会标注“搜索线索，发布时间未核实”；提供带时区时间戳时则检查其是否处于过去 24 小时内。Tavily 在底部显示 `success (N条)`、`partial (N条)` 或 `failed (0条)`，健康 JSON 同时记录两组请求状态；其中 N 为清洗去重后保留的条目数。
+| 检索池 | 检索范围 | 上限 |
+| --- | --- | --- |
+| X 关注大佬专属池 (Tavily) | x.com；五个关注账号的 `/status` 页面 | 10 |
+| X 商业变现广撒网 (Tavily) | x.com；MRR / launched / Micro-SaaS 与 AI / VLM / OCR / SaaS | 6 |
+| Reddit与IH精选池 (Tavily) | reddit.com 的 SideProject、LocalLLaMA 原帖及 indiehackers.com 的文章 | 10 |
+
+专属池再次校验作者属于 `levelsio`、`marc_louvion`、`dannypostmaa`、`dotey`、`op7418`。社区池校验域名和帖子路径，避免搜索页、账号页或无关板块混入。三池各自清洗去重、独立统计；合并时 A 池优先，跨池重复只交给模型一次，因此各池条数之和可能大于合并总数。结果追加到 RSS 池后统一编号，不占 RSS 每分类配额。
+
+邮件附带 [X 监控列表](https://x.com/i/lists/2122591054356709465) 入口。程序搜索指定的五个账号，不会读取或同步列表成员，也不保证搜索引擎覆盖全部原帖。搜索结果缺少精确发布时间时会标注“搜索线索，发布时间未核实”；提供带时区时间戳时则检查其是否处于过去 24 小时内。三个池在底部分别显示 `success (N条)` 或 `failed (0条)`，健康 JSON 分别记录各自状态；缺少密钥时三池分别报告失败，其余源继续执行。成功但零条表示本次没有通过筛选的结果，不代表五个账号当天没有发帖。
 
 浏览器 User-Agent 已配置，但网站仍可能限流或拒绝 GitHub Actions 的出口 IP。RSS 地址也可能随网站改版变化，运行后可在 `*-health.json` 检查状态，再调整 `feeds.yaml`。
 
-默认窗口为 **过去 24 小时**。可将 `settings.lookback_hours` 改为 `36`；最大允许 36，不会悄悄扩大时间窗口。规则如下：
+默认窗口为 **过去 24 小时**，全局设置仍限制在 36 小时以内。MicroConf、Hugging Face Blog、Transformers Releases 单独配置 `lookback_hours: 72`；单源最大允许 72 小时，其他源继承全局窗口。报告顶部和健康状态注明窗口，超过 24 小时的文章在来源索引标为“近三日更新”。规则如下：
 
 - 使用 RSS 发布时间，或在缺少发布时间时使用 Atom 更新时间；不使用更新时间覆盖已有的旧发布时间。
 - RSS 中缺少可解析日期、未来日期、无有效 HTTP(S) 链接的条目被跳过。X 搜索的时间标注规则见上文。
 - 按链接去重并去除常见追踪参数；单源默认最多 8 条、每分类最多 20 条，摘要最多 1400 字符。
-- 每个源设置 15 秒超时，整个下载也限制为 15 秒；单个源异常不终止其他抓取。
-- 不持久化跨日去重状态。36 小时窗口或手动重复运行可能重复展示资讯；手动重跑也会再次发邮件。
+- 每个 RSS 下载设置 15 秒超时；SaaS 源若遇到 429，额外等待 3 秒并允许一次新的 15 秒下载。单个源异常不终止其他抓取。
+- 不持久化跨日去重状态。72 小时窗口可能让同一篇低频文章连续几天出现，手动重跑也会再次发邮件。
 
 ## 本地运行
 

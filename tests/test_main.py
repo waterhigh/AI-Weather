@@ -35,6 +35,53 @@ def rss(*items):
 
 
 class FeedTests(unittest.IsolatedAsyncioTestCase):
+    async def test_source_window_override_and_report(self):
+        data = rss(rss_item("new", 1), rss_item("older", 48), rss_item("boundary", 72), rss_item("expired", 72.01))
+        async with httpx.AsyncClient(transport=httpx.MockTransport(lambda _: httpx.Response(200, content=data))) as client:
+            normal, _ = await main.fetch_one(client, "test", {"name": "Daily", "url": "https://example.com/feed"}, NOW, SETTINGS)
+            slow, health = await main.fetch_one(client, "test", {"name": "MicroConf", "url": "https://example.com/feed", "lookback_hours": 72}, NOW, SETTINGS)
+        self.assertEqual([a.title for a in normal], ["new"])
+        self.assertEqual([a.title for a in slow], ["new", "older", "boundary"])
+        self.assertEqual(SETTINGS["lookback_hours"], 24)
+        self.assertEqual(health["lookback_hours"], 72)
+        for i, article in enumerate(slow):
+            article.id = f"S{i:03d}"
+        text = main.render_markdown(None, slow, [health], NOW, 24)
+        self.assertIn("指定低频源 72 小时", text)
+        self.assertIn("近三日更新", text)
+
+    async def test_reddit_429_retries_once_after_three_seconds(self):
+        for persistent in (False, True):
+            calls = []
+
+            def handler(request):
+                calls.append(request)
+                self.assertIn("Mozilla/5.0", request.headers["User-Agent"])
+                if persistent or len(calls) == 1:
+                    return httpx.Response(429)
+                return httpx.Response(200, content=rss(rss_item("recovered")))
+
+            async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+                with patch.object(main.asyncio, "sleep", new_callable=AsyncMock) as sleep:
+                    articles, health = await main.fetch_one(client, "test", {"name": "Reddit", "url": "https://www.reddit.com/r/SaaS/top/.rss?t=day", "retry_429_delay_seconds": 3}, NOW, SETTINGS)
+            sleep.assert_awaited_once_with(3)
+            self.assertEqual(len(calls), 2)
+            self.assertEqual(health["status"], "failed" if persistent else "ok")
+            self.assertEqual(len(articles), 0 if persistent else 1)
+
+    def test_feed_config_windows_and_removed_sources(self):
+        config = main.load_config(main.ROOT / "feeds.yaml")
+        specs = [spec for feeds in config["categories"].values() for spec in feeds]
+        self.assertEqual({s["name"] for s in specs if s.get("lookback_hours") == 72}, {"MicroConf", "Hugging Face Blog", "Transformers Releases"})
+        urls = [s["url"] for s in specs]
+        self.assertFalse(any("ihrss.io" in u or "/SideProject/" in u or "/LocalLLaMA/" in u for u in urls))
+        self.assertTrue(any("/SaaS/" in u for u in urls))
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "feeds.yaml"
+            path.write_text("categories:\n  test:\n    - name: invalid\n      lookback_hours: 73\n", encoding="utf-8")
+            with self.assertRaises(main.BriefError):
+                main.load_config(path)
+
     def test_dates_boundaries_and_missing_dates(self):
         articles = main.parse_articles(rss(
             rss_item("new"), rss_item("boundary", 24), rss_item("old", 24.01),
@@ -115,8 +162,8 @@ class FeedTests(unittest.IsolatedAsyncioTestCase):
             articles, health = await main.collect_articles(config, NOW)
         self.assertEqual([a.title for a in articles], ["shared", "unique"])
         self.assertEqual([a.id for a in articles], ["S001", "S002"])
-        self.assertTrue(all(h["status"] == "ok" for h in health[:-1]))
-        self.assertEqual(health[-1]["reason"], "missing TAVILY_API_KEY")
+        self.assertTrue(all(h["status"] == "ok" for h in health[:-3]))
+        self.assertTrue(all(h["reason"] == "missing TAVILY_API_KEY" for h in health[-3:]))
 
     def test_excessive_lookback_rejected(self):
         with tempfile.TemporaryDirectory() as directory:
