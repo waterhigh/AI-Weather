@@ -22,19 +22,7 @@ categories:
     - name: MicroConf
       url: https://microconf.com/latest?format=rss
 
-  X大佬动态:
-    # X 无通用官方 RSS。设置 RSSHUB_BASE_URL 指向支持 Twitter 路由的实例；
-    # 实例通常还需要运营者配置 X 登录凭据。未设置时这些源自动跳过。
-    # 也可以直接把 url 替换成你已订阅的第三方 X RSS 地址。
-    - name: Pieter Levels (@levelsio)
-      url: ${RSSHUB_BASE_URL}/twitter/user/levelsio
-    - name: Marc Lou (@marc_louvion)
-      url: ${RSSHUB_BASE_URL}/twitter/user/marc_louvion
-    - name: Danny Postma (@dannypostma)
-      url: ${RSSHUB_BASE_URL}/twitter/user/dannypostma
-    - name: Simon Willison (@simonw)
-      url: ${RSSHUB_BASE_URL}/twitter/user/simonw
-
+  # X 动态由 main.py 的 Tavily 双查询提供；无需 RSSHub，配置 TAVILY_API_KEY 即可。
   AI工程与视觉前沿:
     - name: Reddit — LocalLLaMA 日榜
       url: https://www.reddit.com/r/LocalLLaMA/top/.rss?t=day
