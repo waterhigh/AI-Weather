@@ -10,14 +10,8 @@ categories:
   商业变现与独立开发:
     - name: Product Hunt
       url: https://www.producthunt.com/feed
-    - name: Reddit — SaaS 日榜
-      url: https://www.reddit.com/r/SaaS/top/.rss?t=day
-      retry_429_delay_seconds: 3
     - name: Hacker News — Show HN
       url: https://hnrss.org/show
-    - name: MicroConf
-      url: https://microconf.com/latest?format=rss
-      lookback_hours: 72
 
   # X 专属池、X 商业池、Reddit/IH 精选池由 main.py 的 Tavily 三查询提供。
   AI工程与视觉前沿:

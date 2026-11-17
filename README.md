@@ -37,31 +37,31 @@
 
 ## X 与其他信源
 
-已删除 Indie Hackers 社区镜像、r/SideProject 与 r/LocalLLaMA 直连 RSS，改由 Tavily 社区精选池检索。保留 Product Hunt、r/SaaS 日榜、Show HN 与工程博客/发布源。r/SaaS 配置浏览器 User-Agent，遇到 HTTP 429 时等待 3 秒重试一次，仍失败则记录并跳过；延迟重试不保证能解除服务端限流。
+已删除 Indie Hackers 社区镜像、Reddit 直连 RSS 和 MicroConf。Reddit 的 SaaS、SideProject、LocalLLaMA 与 Indie Hackers 由 Tavily 社区精选池检索。RSS 保留 Product Hunt、Show HN、Hugging Face Blog、Simon Willison's Weblog、Ollama、vLLM、Transformers Releases；单源失败仍记录并跳过。
 
 新品排名和 Reddit 热度不代表真实付费数据；收入复盘属于作者自述。日常源按发布时间筛选 24 小时窗口，指定低频源使用 72 小时窗口。
 
-Tavily 每次执行三个独立 `basic` 搜索，均使用 `time_range="day"`，每个请求设置 20 秒超时：
+Tavily 每次执行三个独立 `basic` 搜索，每个请求设置 20 秒超时；X 两池使用 `time_range="week"`，社区池使用 `time_range="day"`：
 
 | 检索池 | 检索范围 | 上限 |
 | --- | --- | --- |
-| X 关注大佬专属池 (Tavily) | x.com；五个关注账号的 `/status` 页面 | 10 |
-| X 商业变现广撒网 (Tavily) | x.com；MRR / launched / Micro-SaaS 与 AI / VLM / OCR / SaaS | 6 |
-| Reddit与IH精选池 (Tavily) | reddit.com 的 SideProject、LocalLLaMA 原帖及 indiehackers.com 的文章 | 10 |
+| X 关注大佬专属池 (Tavily) | x.com / twitter.com；五个关注账号的推文和主页，近一周 | 12 |
+| X 商业变现广撒网 (Tavily) | x.com / twitter.com；MRR / launched / Micro-SaaS 与 AI / VLM / OCR / SaaS，近一周 | 8 |
+| Reddit与IH精选池 (Tavily) | reddit.com 的 SaaS、SideProject、LocalLLaMA 原帖及 indiehackers.com 的文章，近一天 | 12 |
 
-专属池再次校验作者属于 `levelsio`、`marc_louvion`、`dannypostmaa`、`dotey`、`op7418`。社区池校验域名和帖子路径，避免搜索页、账号页或无关板块混入。三池各自清洗去重、独立统计；合并时 A 池优先，跨池重复只交给模型一次，因此各池条数之和可能大于合并总数。结果追加到 RSS 池后统一编号，不占 RSS 每分类配额。
+专属池再次校验作者属于 `levelsio`、`marc_louvion`、`dannypostmaa`、`dotey`、`op7418`，允许这些账号的主页；广撒网池只接收推文。Twitter/X 域名统一为 `https://x.com/...`，推文的 `/photo/1`、`/analytics` 等后缀会被去除。主页按用户名去重，推文按 ID 去重，两者不会混淆。社区池校验域名和帖子路径。三池各自清洗去重、独立统计；合并时 A 池优先，跨池重复只交给模型一次，因此各池条数之和可能大于合并总数。结果追加到 RSS 池后统一编号，不占 RSS 每分类配额。
 
-邮件附带 [X 监控列表](https://x.com/i/lists/2122591054356709465) 入口。程序搜索指定的五个账号，不会读取或同步列表成员，也不保证搜索引擎覆盖全部原帖。搜索结果缺少精确发布时间时会标注“搜索线索，发布时间未核实”；提供带时区时间戳时则检查其是否处于过去 24 小时内。三个池在底部分别显示 `success (N条)` 或 `failed (0条)`，健康 JSON 分别记录各自状态；缺少密钥时三池分别报告失败，其余源继续执行。成功但零条表示本次没有通过筛选的结果，不代表五个账号当天没有发帖。
+邮件附带 [X 监控列表](https://x.com/i/lists/2122591054356709465) 入口。程序搜索指定的五个账号，不会读取或同步列表成员，也不保证搜索引擎覆盖全部原帖。搜索结果缺少精确发布时间时标注“搜索线索，发布时间未核实”；提供带时区时间戳时，X 按 7 天校验，社区按 24 小时校验。主页结果单独标为“主页搜索摘要”，可能包含旧置顶或多条内容；页面时间不作为推文发布时间。三个池在底部分别显示 `success (N条)` 或 `failed (0条)`，健康 JSON 分别记录各自状态和窗口；缺少密钥时三池分别报告失败，其余源继续执行。成功但零条表示本次没有通过筛选的结果，不代表五个账号没有发帖。
 
 浏览器 User-Agent 已配置，但网站仍可能限流或拒绝 GitHub Actions 的出口 IP。RSS 地址也可能随网站改版变化，运行后可在 `*-health.json` 检查状态，再调整 `feeds.yaml`。
 
-默认窗口为 **过去 24 小时**，全局设置仍限制在 36 小时以内。MicroConf、Hugging Face Blog、Transformers Releases 单独配置 `lookback_hours: 72`；单源最大允许 72 小时，其他源继承全局窗口。报告顶部和健康状态注明窗口，超过 24 小时的文章在来源索引标为“近三日更新”。规则如下：
+RSS 默认窗口为 **过去 24 小时**，全局设置仍限制在 36 小时以内。Hugging Face Blog、Transformers Releases 单独配置 `lookback_hours: 72`；单源最大允许 72 小时，其他源继承全局窗口。报告顶部和健康状态注明不同窗口；超过 24 小时的 RSS 文章标为“近三日更新”，X 推文标为“近一周动态”。规则如下：
 
 - 使用 RSS 发布时间，或在缺少发布时间时使用 Atom 更新时间；不使用更新时间覆盖已有的旧发布时间。
 - RSS 中缺少可解析日期、未来日期、无有效 HTTP(S) 链接的条目被跳过。X 搜索的时间标注规则见上文。
 - 按链接去重并去除常见追踪参数；单源默认最多 8 条、每分类最多 20 条，摘要最多 1400 字符。
-- 每个 RSS 下载设置 15 秒超时；SaaS 源若遇到 429，额外等待 3 秒并允许一次新的 15 秒下载。单个源异常不终止其他抓取。
-- 不持久化跨日去重状态。72 小时窗口可能让同一篇低频文章连续几天出现，手动重跑也会再次发邮件。
+- 每个 RSS 下载设置 15 秒超时，单个源异常不终止其他抓取。自定义源仍可配置 `retry_429_delay_seconds` 以启用一次 429 延迟重试。
+- 不持久化跨日去重状态。72 小时 RSS 窗口和一周 X 窗口可能重复展示近期内容，手动重跑也会再次发邮件。
 
 ## 本地运行
 
@@ -92,6 +92,8 @@ python main.py --dry-run
 ## 输出与异常处理
 
 模型先返回结构化 JSON，程序校验字段、1—5 星评分以及来源编号，再转换为固定四板块的 Markdown 和经过 HTML 清洗的卡片邮件。纯文本备用正文与 HTML 正文一起发送。每个机会都包含痛点、产品形态、变现模式、星级和 MVP 切入建议，并附有原文链接。
+
+JSON 解析支持纯 JSON、代码围栏及对象前后附带少量说明文字。直接解析失败时，使用正则提取最外层 `{...}` 再解析；语法损坏、多个混杂对象、缺少必填字段或无效来源编号仍会进入异常处理。
 
 RSS 标题、摘要与 Tavily 搜索摘要是提炼依据，不等于阅读全文。程序要求模型区分事实与待验证的产品假设；有足够证据时给出 3 个灵感，不足时明确留空。来源编号检查能阻止不存在的引用编号，具体分析仍需结合原文判断。
 

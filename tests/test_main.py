@@ -14,6 +14,7 @@ from unittest.mock import AsyncMock, patch
 
 from bs4 import BeautifulSoup
 import httpx
+import yaml
 
 import main
 
@@ -39,7 +40,7 @@ class FeedTests(unittest.IsolatedAsyncioTestCase):
         data = rss(rss_item("new", 1), rss_item("older", 48), rss_item("boundary", 72), rss_item("expired", 72.01))
         async with httpx.AsyncClient(transport=httpx.MockTransport(lambda _: httpx.Response(200, content=data))) as client:
             normal, _ = await main.fetch_one(client, "test", {"name": "Daily", "url": "https://example.com/feed"}, NOW, SETTINGS)
-            slow, health = await main.fetch_one(client, "test", {"name": "MicroConf", "url": "https://example.com/feed", "lookback_hours": 72}, NOW, SETTINGS)
+            slow, health = await main.fetch_one(client, "test", {"name": "Hugging Face Blog", "url": "https://example.com/feed", "lookback_hours": 72}, NOW, SETTINGS)
         self.assertEqual([a.title for a in normal], ["new"])
         self.assertEqual([a.title for a in slow], ["new", "older", "boundary"])
         self.assertEqual(SETTINGS["lookback_hours"], 24)
@@ -50,7 +51,7 @@ class FeedTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("指定低频源 72 小时", text)
         self.assertIn("近三日更新", text)
 
-    async def test_reddit_429_retries_once_after_three_seconds(self):
+    async def test_optional_feed_429_retries_once_after_three_seconds(self):
         for persistent in (False, True):
             calls = []
 
@@ -63,7 +64,7 @@ class FeedTests(unittest.IsolatedAsyncioTestCase):
 
             async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
                 with patch.object(main.asyncio, "sleep", new_callable=AsyncMock) as sleep:
-                    articles, health = await main.fetch_one(client, "test", {"name": "Reddit", "url": "https://www.reddit.com/r/SaaS/top/.rss?t=day", "retry_429_delay_seconds": 3}, NOW, SETTINGS)
+                    articles, health = await main.fetch_one(client, "test", {"name": "Custom", "url": "https://example.com/feed", "retry_429_delay_seconds": 3}, NOW, SETTINGS)
             sleep.assert_awaited_once_with(3)
             self.assertEqual(len(calls), 2)
             self.assertEqual(health["status"], "failed" if persistent else "ok")
@@ -72,10 +73,10 @@ class FeedTests(unittest.IsolatedAsyncioTestCase):
     def test_feed_config_windows_and_removed_sources(self):
         config = main.load_config(main.ROOT / "feeds.yaml")
         specs = [spec for feeds in config["categories"].values() for spec in feeds]
-        self.assertEqual({s["name"] for s in specs if s.get("lookback_hours") == 72}, {"MicroConf", "Hugging Face Blog", "Transformers Releases"})
+        self.assertEqual({s["name"] for s in specs if s.get("lookback_hours") == 72}, {"Hugging Face Blog", "Transformers Releases"})
         urls = [s["url"] for s in specs]
-        self.assertFalse(any("ihrss.io" in u or "/SideProject/" in u or "/LocalLLaMA/" in u for u in urls))
-        self.assertTrue(any("/SaaS/" in u for u in urls))
+        self.assertFalse(any("ihrss.io" in u or "reddit.com" in u or "microconf.com" in u for u in urls))
+        self.assertEqual({s["name"] for s in specs}, {"Product Hunt", "Hacker News — Show HN", "Hugging Face Blog", "Simon Willison's Weblog", "Ollama Releases", "vLLM Releases", "Transformers Releases"})
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "feeds.yaml"
             path.write_text("categories:\n  test:\n    - name: invalid\n      lookback_hours: 73\n", encoding="utf-8")
@@ -177,6 +178,34 @@ class ModelTests(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
         self.articles, self.brief = main.demo_data(NOW)
         self.env = {"LLM_API_KEY": "fake-test-key", "LLM_BASE_URL": "https://api.example.com/v1", "LLM_MODEL": "test-model"}
+
+    async def test_json_with_surrounding_prose_and_nested_braces(self):
+        brief = copy.deepcopy(self.brief)
+        brief["ideas"][0]["mvp"] = '示例模板 {invoice}: 含有引号 "OCR" 与多行\n内容'
+        encoded = json.dumps(brief, ensure_ascii=False)
+        for content in (encoded, "下面是简报：\n" + encoded + "\n以上供参考。",
+                        "结果如下：\n```json\n" + encoded + "\n```\n完成。"):
+            client = httpx.AsyncClient(transport=httpx.MockTransport(lambda _: httpx.Response(200, json={
+                "choices": [{"finish_reason": "stop", "message": {"content": content}}]})))
+            with patch.dict(os.environ, self.env), patch.object(main.httpx, "AsyncClient", return_value=client):
+                self.assertEqual(await main.generate_brief(self.articles, NOW), brief)
+
+    async def test_json_extraction_preserves_validation(self):
+        invalid = copy.deepcopy(self.brief)
+        invalid["ideas"][0]["source_ids"] = ["S999"]
+        for content in ("text {broken json} end", "text {} {} end", "text " + json.dumps(invalid) + " end"):
+            client = httpx.AsyncClient(transport=httpx.MockTransport(lambda _: httpx.Response(200, json={
+                "choices": [{"message": {"content": content}}]})))
+            with patch.dict(os.environ, self.env), patch.object(main.httpx, "AsyncClient", return_value=client):
+                with self.assertRaises(main.BriefError):
+                    await main.generate_brief(self.articles, NOW)
+
+    def test_workflow_maps_tavily_key_to_main_job(self):
+        workflow = yaml.load((main.ROOT / ".github/workflows/daily_brief.yml").read_text(encoding="utf-8"), Loader=yaml.BaseLoader)
+        job = workflow["jobs"]["send-brief"]
+        self.assertEqual(job["env"]["TAVILY_API_KEY"], "${{ secrets.TAVILY_API_KEY }}")
+        self.assertTrue(any(s.get("run") == "python main.py" for s in job["steps"]))
+        self.assertTrue(any(s.get("run") == "python -m unittest discover -s tests -v" for s in job["steps"]))
 
     def test_unknown_source_and_invalid_rating_rejected(self):
         for value in [0, 6, True, "4"]:
